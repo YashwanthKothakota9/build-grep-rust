@@ -2,35 +2,84 @@ use std::env;
 use std::io;
 use std::process;
 
-fn match_pattern(input_line: &str, pattern: &str) -> bool {
-    if pattern.chars().count() == 1 {
-        return input_line.contains(pattern);
-    } else if pattern.contains("\\d") {
-        return input_line.contains(|c: char| c.is_ascii_digit());
-    } else if pattern.contains("\\w") {
-        return input_line.contains(|c: char| c.is_ascii_alphabetic() || c.is_ascii_digit());
-    } else if pattern.contains("[^") {
-        let mut chars = pattern.chars().collect::<Vec<char>>();
-        chars.remove(0);
-        chars.remove(chars.len() - 1);
-        let chars = chars.iter().map(|c| c.to_string()).collect::<Vec<String>>();
-        return input_line.contains(|c: char| !chars.contains(&c.to_string()));
-    } else if pattern.contains("[") {
-        let mut chars = pattern.chars().collect::<Vec<char>>();
-        chars.remove(0);
-        chars.remove(chars.len() - 1);
-        let chars = chars.iter().map(|c| c.to_string()).collect::<Vec<String>>();
-        return input_line.contains(|c: char| chars.contains(&c.to_string()));
-    } else {
-        panic!("Unhandled pattern: {}", pattern)
+fn matches_token(ch: char, token: &str) -> bool {
+    match token {
+        "\\d" => ch.is_ascii_digit(),
+        "\\w" => ch.is_ascii_alphabetic() || ch.is_ascii_digit(),
+        token if token.starts_with("[^") && token.ends_with("]") => {
+            let chars_str = &token[2..token.len() - 1];
+            let chars: Vec<char> = chars_str.chars().collect();
+            !chars.contains(&ch)
+        }
+        token if token.starts_with("[") && token.ends_with("]") => {
+            let chars_str = &token[1..token.len() - 1];
+            let chars: Vec<char> = chars_str.chars().collect();
+            chars.contains(&ch)
+        }
+        _ => token.chars().next().unwrap_or('\0') == ch,
     }
 }
 
-// Usage: echo <input_text> | your_program.sh -E <pattern>
-fn main() {
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
-    eprintln!("Logs from your program will appear here!");
+fn matches_at_position(input_chars: &[char], tokens: &[String], start_pos: usize) -> bool {
+    if start_pos + tokens.len() > input_chars.len() {
+        return false;
+    }
 
+    for (i, token) in tokens.iter().enumerate() {
+        let char_pos = start_pos + i;
+        if !matches_token(input_chars[char_pos], token) {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn match_pattern(input_line: &str, pattern: &str) -> bool {
+    let tokens = parse_pattern(pattern);
+    let input_chars: Vec<char> = input_line.chars().collect();
+
+    for start_pos in 0..=input_chars.len().saturating_sub(tokens.len()) {
+        if matches_at_position(&input_chars, &tokens, start_pos) {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn parse_pattern(pattern: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let chars: Vec<char> = pattern.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if i < chars.len() - 1 && chars[i] == '\\' {
+            let escape_seq = format!("{}{}", chars[i], chars[i + 1]);
+            tokens.push(escape_seq);
+            i += 2;
+        } else if chars[i] == '[' {
+            let start = i;
+            i += 1;
+
+            while i < chars.len() && chars[i] != ']' {
+                i += 1;
+            }
+            if i < chars.len() {
+                i += 1;
+                let bracket_expr: String = chars[start..i].iter().collect();
+                tokens.push(bracket_expr);
+            }
+        } else {
+            tokens.push(chars[i].to_string());
+            i += 1;
+        }
+    }
+
+    tokens
+}
+
+fn main() {
     if env::args().nth(1).unwrap() != "-E" {
         println!("Expected first argument to be '-E'");
         process::exit(1);
