@@ -43,9 +43,14 @@ fn matches_at_position(input_chars: &[char], tokens: &[String], start_pos: usize
 fn match_pattern(input_line: &str, pattern: &str) -> bool {
     let mut tokens = parse_pattern(pattern);
     let starts_with_anchor = tokens.first() == Some(&"^".to_string());
+    let ends_with_anchor = tokens.last() == Some(&"$".to_string());
 
     if starts_with_anchor {
         tokens.remove(0);
+    }
+
+    if ends_with_anchor {
+        tokens.pop();
     }
 
     // println!("{:?}", tokens);
@@ -54,6 +59,8 @@ fn match_pattern(input_line: &str, pattern: &str) -> bool {
 
     if starts_with_anchor {
         matches_at_position(&input_chars, &tokens, 0)
+    } else if ends_with_anchor {
+        matches_at_position(&input_chars, &tokens, input_chars.len() - tokens.len())
     } else {
         for start_pos in 0..=input_chars.len() {
             if matches_at_position(&input_chars, &tokens, start_pos) {
