@@ -24,9 +24,14 @@ fn matches_at_position(input_chars: &[char], tokens: &[String], start_pos: usize
     if start_pos + tokens.len() > input_chars.len() {
         return false;
     }
-
+    // println!("{}: {:?} : {:?}", start_pos, tokens, input_chars);
     for (i, token) in tokens.iter().enumerate() {
+        if token == "^" {
+            continue;
+        }
+
         let char_pos = start_pos + i;
+        // println!("{}: {}: {}", char_pos, token, input_chars[char_pos]);
         if !matches_token(input_chars[char_pos], token) {
             return false;
         }
@@ -36,16 +41,27 @@ fn matches_at_position(input_chars: &[char], tokens: &[String], start_pos: usize
 }
 
 fn match_pattern(input_line: &str, pattern: &str) -> bool {
-    let tokens = parse_pattern(pattern);
-    let input_chars: Vec<char> = input_line.chars().collect();
+    let mut tokens = parse_pattern(pattern);
+    let starts_with_anchor = tokens.first() == Some(&"^".to_string());
 
-    for start_pos in 0..=input_chars.len().saturating_sub(tokens.len()) {
-        if matches_at_position(&input_chars, &tokens, start_pos) {
-            return true;
-        }
+    if starts_with_anchor {
+        tokens.remove(0);
     }
 
-    false
+    // println!("{:?}", tokens);
+    let input_chars: Vec<char> = input_line.chars().collect();
+    // println!("{:?}", input_chars);
+
+    if starts_with_anchor {
+        matches_at_position(&input_chars, &tokens, 0)
+    } else {
+        for start_pos in 0..=input_chars.len() {
+            if matches_at_position(&input_chars, &tokens, start_pos) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 fn parse_pattern(pattern: &str) -> Vec<String> {
