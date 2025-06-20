@@ -8,32 +8,25 @@ This is a starting point for Rust solutions to the
 strings. [`grep`](https://en.wikipedia.org/wiki/Grep) is a CLI tool for
 searching using Regexes.
 
-In this challenge you'll build your own implementation of `grep`. Along the way
-we'll learn about Regex syntax, how parsers/lexers work, and how regular
-expressions are evaluated.
+<h1 align="center">Grep from scratch in Rust</h1>
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+<div align="center">
+    <img src="/image.png" alt="Project completion image">
+</div>
 
-# Passing the first stage
 
-The entry point for your `grep` implementation is in `src/main.rs`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
-
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
-```
-
-Time to move on to the next stage!
-
-# Stage 2 & beyond
-
-Note: This section is for stages 2 and beyond.
-
-1. Ensure you have `cargo (1.87)` installed locally
-1. Run `./your_program.sh` to run your program, which is implemented in
-   `src/main.rs`. This command compiles your Rust project, so it might be slow
-   the first time you run it. Subsequent runs will be fast.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+### Stages:
+1. Match a literal character 
+2. Match digits - `\d`
+3. Match alphanumeric characters - `\w`
+4. Positive character groups - Ex: `[abc]`
+5. Negative character groups - Ex: `[^abc]`
+6. Combining all character classes above in a pattern
+7. Start of string anchor - `^`
+8. End of string anchor - `$`
+9. Match one or more items - `+`
+   1.  In first iteration implemented `Greedy approach`
+       1.  where for example Input: caaat and Pattern: ca+at, `+` will consume all three `a`s and next `a` will not have matching character in input and will return `false`
+   2.  In second iteration added `Backtracking` condition
+       1.  `+` takes all three `a`s and next `a` no match returns `false`
+       2.  `+` takes two `a`s and next `a` has match next `t` has match so returns `true`
