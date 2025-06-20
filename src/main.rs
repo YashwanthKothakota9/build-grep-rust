@@ -9,6 +9,12 @@ fn match_pattern(input_line: &str, pattern: &str) -> bool {
         return input_line.contains(|c: char| c.is_ascii_digit());
     } else if pattern.contains("\\w") {
         return input_line.contains(|c: char| c.is_ascii_alphabetic() || c.is_ascii_digit());
+    } else if pattern.contains("[") {
+        let mut chars = pattern.chars().collect::<Vec<char>>();
+        chars.remove(0);
+        chars.remove(chars.len() - 1);
+        let chars = chars.iter().map(|c| c.to_string()).collect::<Vec<String>>();
+        return input_line.contains(|c: char| chars.contains(&c.to_string()));
     } else {
         panic!("Unhandled pattern: {}", pattern)
     }
