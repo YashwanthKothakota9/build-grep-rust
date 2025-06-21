@@ -10,6 +10,7 @@ enum Token {
     CharClass(Vec<char>),
     NegCharClass(Vec<char>),
     Plus(Box<Token>),
+    Question(Box<Token>),
 }
 
 fn matches_token(ch: char, token: &Token) -> bool {
@@ -21,6 +22,7 @@ fn matches_token(ch: char, token: &Token) -> bool {
         Token::NegCharClass(chars) => !chars.contains(&ch),
         // Plus tokens can't be matched with single character matches
         Token::Plus(_) => false,
+        Token::Question(_) => false,
     }
 }
 
@@ -39,6 +41,17 @@ fn matches_at_position_recursive(
     }
 
     match &tokens[token_idx] {
+        Token::Question(inner_token) => {
+            if pos < input_chars.len() && matches_token(input_chars[pos], inner_token) {
+                if let Some(end_pos) =
+                    matches_at_position_recursive(input_chars, tokens, pos + 1, token_idx + 1)
+                {
+                    return Some(end_pos);
+                }
+            }
+
+            matches_at_position_recursive(input_chars, tokens, pos, token_idx + 1)
+        }
         Token::Plus(inner_token) => {
             if pos >= input_chars.len() || !matches_token(input_chars[pos], inner_token) {
                 return None;
@@ -157,6 +170,11 @@ fn parse_pattern(pattern: &str) -> Vec<Token> {
         } else if chars[i] == '+' {
             if let Some(last_token) = tokens.pop() {
                 tokens.push(Token::Plus(Box::new(last_token)));
+            }
+            i += 1;
+        } else if chars[i] == '?' {
+            if let Some(last_token) = tokens.pop() {
+                tokens.push(Token::Question(Box::new(last_token)));
             }
             i += 1;
         } else {
