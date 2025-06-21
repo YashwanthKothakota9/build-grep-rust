@@ -11,6 +11,7 @@ enum Token {
     NegCharClass(Vec<char>),
     Plus(Box<Token>),
     Question(Box<Token>),
+    Dot,
 }
 
 fn matches_token(ch: char, token: &Token) -> bool {
@@ -23,6 +24,7 @@ fn matches_token(ch: char, token: &Token) -> bool {
         // Plus tokens can't be matched with single character matches
         Token::Plus(_) => false,
         Token::Question(_) => false,
+        Token::Dot => true,
     }
 }
 
@@ -176,6 +178,9 @@ fn parse_pattern(pattern: &str) -> Vec<Token> {
             if let Some(last_token) = tokens.pop() {
                 tokens.push(Token::Question(Box::new(last_token)));
             }
+            i += 1;
+        } else if chars[i] == '.' {
+            tokens.push(Token::Dot);
             i += 1;
         } else {
             tokens.push(Token::Literal(chars[i]));
