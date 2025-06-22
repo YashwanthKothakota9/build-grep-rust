@@ -13,6 +13,7 @@ enum Token {
     Question(Box<Token>),
     Dot,
     Group(Vec<Vec<Token>>), // Group containing alternation alternatives
+    Backreference(usize),   // Backreference to captured group (1-indexed)
 }
 
 fn matches_token(ch: char, token: &Token) -> bool {
@@ -26,12 +27,18 @@ fn matches_token(ch: char, token: &Token) -> bool {
         Token::Plus(_) => false,
         Token::Question(_) => false,
         Token::Group(_) => false,
+        Token::Backreference(_) => false,
         Token::Dot => true,
     }
 }
 
-fn matches_at_position(input_chars: &[char], tokens: &[Token], start_pos: usize) -> Option<usize> {
-    matches_at_position_recursive(input_chars, tokens, start_pos, 0)
+fn matches_at_position_with_captures(
+    input_chars: &[char],
+    tokens: &[Token],
+    start_pos: usize,
+    captures: &mut Vec<String>,
+) -> Option<usize> {
+    matches_at_position_recursive(input_chars, tokens, start_pos, 0, captures)
 }
 
 fn matches_at_position_recursive(
@@ -39,6 +46,7 @@ fn matches_at_position_recursive(
     tokens: &[Token],
     pos: usize,
     token_idx: usize,
+    captures: &mut Vec<String>,
 ) -> Option<usize> {
     if token_idx >= tokens.len() {
         return Some(pos);
@@ -47,14 +55,18 @@ fn matches_at_position_recursive(
     match &tokens[token_idx] {
         Token::Question(inner_token) => {
             if pos < input_chars.len() && matches_token(input_chars[pos], inner_token) {
-                if let Some(end_pos) =
-                    matches_at_position_recursive(input_chars, tokens, pos + 1, token_idx + 1)
-                {
+                if let Some(end_pos) = matches_at_position_recursive(
+                    input_chars,
+                    tokens,
+                    pos + 1,
+                    token_idx + 1,
+                    captures,
+                ) {
                     return Some(end_pos);
                 }
             }
 
-            matches_at_position_recursive(input_chars, tokens, pos, token_idx + 1)
+            matches_at_position_recursive(input_chars, tokens, pos, token_idx + 1, captures)
         }
         Token::Plus(inner_token) => {
             // Handle Plus quantifier for both single tokens and groups
@@ -67,9 +79,13 @@ fn matches_at_position_recursive(
                     // First match is required
                     let mut found_first = false;
                     for alternative in alternatives {
-                        if let Some(end_pos) =
-                            matches_at_position(input_chars, alternative, current_pos)
-                        {
+                        let mut temp_captures = captures.clone();
+                        if let Some(end_pos) = matches_at_position_with_captures(
+                            input_chars,
+                            alternative,
+                            current_pos,
+                            &mut temp_captures,
+                        ) {
                             match_positions.push(end_pos);
                             current_pos = end_pos;
                             found_first = true;
@@ -85,9 +101,13 @@ fn matches_at_position_recursive(
                     loop {
                         let mut found_additional = false;
                         for alternative in alternatives {
-                            if let Some(end_pos) =
-                                matches_at_position(input_chars, alternative, current_pos)
-                            {
+                            let mut temp_captures = captures.clone();
+                            if let Some(end_pos) = matches_at_position_with_captures(
+                                input_chars,
+                                alternative,
+                                current_pos,
+                                &mut temp_captures,
+                            ) {
                                 match_positions.push(end_pos);
                                 current_pos = end_pos;
                                 found_additional = true;
@@ -106,6 +126,7 @@ fn matches_at_position_recursive(
                             tokens,
                             end_pos,
                             token_idx + 1,
+                            captures,
                         ) {
                             return Some(final_pos);
                         }
@@ -133,6 +154,7 @@ fn matches_at_position_recursive(
                             tokens,
                             pos + num_matches,
                             token_idx + 1,
+                            captures,
                         ) {
                             return Some(end_pos);
                         }
@@ -144,23 +166,68 @@ fn matches_at_position_recursive(
         Token::Group(alternatives) => {
             // Try each alternative in the group
             for alternative in alternatives {
-                if let Some(end_pos) = matches_at_position(input_chars, alternative, pos) {
+                // Create a new captures vector to track what this group captures
+                let mut temp_captures = captures.clone();
+                if let Some(end_pos) = matches_at_position_with_captures(
+                    input_chars,
+                    alternative,
+                    pos,
+                    &mut temp_captures,
+                ) {
+                    // Capture what this group matched
+                    let captured_text: String = input_chars[pos..end_pos].iter().collect();
+                    temp_captures.push(captured_text);
+
                     // Continue matching with the rest of the tokens after this group
-                    if let Some(final_pos) =
-                        matches_at_position_recursive(input_chars, tokens, end_pos, token_idx + 1)
-                    {
+                    if let Some(final_pos) = matches_at_position_recursive(
+                        input_chars,
+                        tokens,
+                        end_pos,
+                        token_idx + 1,
+                        &mut temp_captures,
+                    ) {
+                        *captures = temp_captures;
                         return Some(final_pos);
                     }
                 }
             }
             None
         }
+        Token::Backreference(group_num) => {
+            // Check if we have captured this group number (1-indexed)
+            if *group_num == 0 || *group_num > captures.len() {
+                return None;
+            }
+
+            let captured_text = &captures[*group_num - 1];
+            let captured_chars: Vec<char> = captured_text.chars().collect();
+
+            // Check if the input at current position matches the captured text
+            if pos + captured_chars.len() > input_chars.len() {
+                return None;
+            }
+
+            for (i, &ch) in captured_chars.iter().enumerate() {
+                if input_chars[pos + i] != ch {
+                    return None;
+                }
+            }
+
+            // Move position forward by the length of the captured text
+            matches_at_position_recursive(
+                input_chars,
+                tokens,
+                pos + captured_chars.len(),
+                token_idx + 1,
+                captures,
+            )
+        }
 
         _ => {
             if pos >= input_chars.len() || !matches_token(input_chars[pos], &tokens[token_idx]) {
                 return None;
             }
-            matches_at_position_recursive(input_chars, tokens, pos + 1, token_idx + 1)
+            matches_at_position_recursive(input_chars, tokens, pos + 1, token_idx + 1, captures)
         }
     }
 }
@@ -262,17 +329,27 @@ fn match_pattern(input_line: &str, pattern: &str) -> bool {
         }
 
         let matches = if starts_with_anchor && ends_with_anchor {
-            if let Some(end_pos) = matches_at_position(&input_chars, &tokens, 0) {
+            let mut captures = Vec::new();
+            if let Some(end_pos) =
+                matches_at_position_with_captures(&input_chars, &tokens, 0, &mut captures)
+            {
                 end_pos == input_chars.len()
             } else {
                 false
             }
         } else if starts_with_anchor {
-            matches_at_position(&input_chars, &tokens, 0).is_some()
+            let mut captures = Vec::new();
+            matches_at_position_with_captures(&input_chars, &tokens, 0, &mut captures).is_some()
         } else if ends_with_anchor {
             let mut found = false;
             for start_pos in 0..=input_chars.len() {
-                if let Some(end_pos) = matches_at_position(&input_chars, &tokens, start_pos) {
+                let mut captures = Vec::new();
+                if let Some(end_pos) = matches_at_position_with_captures(
+                    &input_chars,
+                    &tokens,
+                    start_pos,
+                    &mut captures,
+                ) {
                     if end_pos == input_chars.len() {
                         found = true;
                         break;
@@ -283,7 +360,15 @@ fn match_pattern(input_line: &str, pattern: &str) -> bool {
         } else {
             let mut found = false;
             for start_pos in 0..=input_chars.len() {
-                if matches_at_position(&input_chars, &tokens, start_pos).is_some() {
+                let mut captures = Vec::new();
+                if matches_at_position_with_captures(
+                    &input_chars,
+                    &tokens,
+                    start_pos,
+                    &mut captures,
+                )
+                .is_some()
+                {
                     found = true;
                     break;
                 }
@@ -333,6 +418,11 @@ fn parse_alternation(chars: &[char], start: usize) -> (Vec<Vec<Token>>, usize) {
                 let token = match chars[i + 1] {
                     'd' => Token::Digit,
                     'w' => Token::Word,
+                    c if c.is_ascii_digit() => {
+                        // Parse backreference like \1, \2, etc.
+                        let group_num = c.to_digit(10).unwrap() as usize;
+                        Token::Backreference(group_num)
+                    }
                     c => Token::Literal(c),
                 };
                 current_tokens.push(token);
